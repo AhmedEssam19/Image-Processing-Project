@@ -48,11 +48,8 @@ def undistort_img():
     # using remapping
     # or using undistort function in opencv which we pass to it distorsion factor and camera matrix that we got
     # from calibration and passing also the original image
-    dst = cv2.undistort(img, camera_matrix, dist, None, camera_matrix)
     # We create an object to save the result of calibration function as follow
-    dist_pickle = {}
-    dist_pickle['camera_matrix'] = camera_matrix
-    dist_pickle['dist'] = dist
+    dist_pickle = {'camera_matrix': camera_matrix, 'dist': dist}
     pickle.dump(dist_pickle, open('camera_cal/cal_pickle.p', 'wb'))
     return dist_pickle
 
@@ -67,6 +64,7 @@ def undistort(img, cal_dir='camera_cal/cal_pickle.p'):
     dst = cv2.undistort(img, camera_matrix, dist, None, camera_matrix)
 
     return dst
+
 
 def get_curve(img, leftx, rightx):
     ploty = np.linspace(0, img.shape[0] - 1, img.shape[0])
@@ -100,7 +98,6 @@ def edge_detection(img, s_thresh=(100, 255), sx_thresh=(15, 255)):
     # we will work on L_channel of the system
 
     hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
-    h_channel = hls[:, :, 0]
     l_channel = hls[:, :, 1]
     s_channel = hls[:, :, 2]
     # we use sobel x detection to detect the edges in the photo using l_channel of hls of our image
@@ -126,15 +123,13 @@ def edge_detection(img, s_thresh=(100, 255), sx_thresh=(15, 255)):
     s_binary = np.zeros_like(s_channel)
     s_binary[(s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])] = 1
 
-    color_binary = np.dstack((np.zeros_like(sx_binary), sx_binary, s_binary)) * 255
-
     combined_binary = np.zeros_like(sx_binary)
     combined_binary[(s_binary == 1) | (sx_binary == 1)] = 1
     return combined_binary
 
 
 def get_hist(img):
-    hist = np.sum(img[img.shape[0]//2:, :], axis=0)
+    hist = np.sum(img[img.shape[0] // 2:, :], axis=0)
     return hist
 
 
@@ -169,9 +164,9 @@ def perspective_warp(img,
 
 
 def inv_perspective_warp(img,
-                     dst_size=(1280, 720),
-                     src=np.float32([(0, 0), (1, 0), (0, 1), (1, 1)]),
-                     dst=np.float32([(0.43, 0.65), (0.58, 0.65), (0.1, 1), (1, 1)])):
+                         dst_size=(1280, 720),
+                         src=np.float32([(0, 0), (1, 0), (0, 1), (1, 1)]),
+                         dst=np.float32([(0.43, 0.65), (0.58, 0.65), (0.1, 1), (1, 1)])):
     # Calculate image size
     img_size = np.float32([(img.shape[1], img.shape[0])])
     # Get source points of the image
