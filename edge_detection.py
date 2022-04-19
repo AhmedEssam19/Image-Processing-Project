@@ -1,15 +1,9 @@
 import numpy as np
-import pandas as pd
 import cv2
-import os
-import glob
-import matplotlib.pyplot as plt
-import pickle
 
 #--> using undistort function that we implement it in callibration file 
 
-def pipeline(img, s_thresh=(100, 255), sx_thresh=(15, 255)):
-    img = undistort(img)
+def edge_detection(img, s_thresh=(100, 255), sx_thresh=(15, 255)):
     img = np.copy(img)
     # Convert to HLS color space and separate the V channel 
     # we use HLS color system to benifit us insted of rgb system as we geet in our testcases 

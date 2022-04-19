@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import cv2
 import os
 import glob
@@ -59,7 +58,8 @@ def undistort_img():
     dist_pickle = {}
     dist_pickle['camera_matrix'] = camera_matrix
     dist_pickle['dist'] = dist
-    pickle.dump( dist_pickle, open('camera_cal/cal_pickle.p', 'wb') )
+    pickle.dump(dist_pickle, open('camera_cal/cal_pickle.p', 'wb'))
+    return dist_pickle
 
 # we create this function based on all the previous to call it easly for making undistortion and callibration
 def undistort(img, cal_dir='camera_cal/cal_pickle.p'):
