@@ -303,22 +303,76 @@ def sliding_window(warped_img, nwindows=9):
 
     return out_img, (left_fitx, right_fitx), (left_fit_, right_fit_), ploty
 
+def merge_image(background, overlay, x, y):
 
-def img_pipeline(original_image):
+    background_width = background.shape[1]
+    background_height = background.shape[0]
+
+    if x >= background_width or y >= background_height:
+        return background
+
+    overlay = cv2.resize(overlay, (300, 300))
+    
+    h, w = overlay.shape[0], overlay.shape[1]
+
+    if x + w > background_width:
+        w = background_width - x
+        overlay = overlay[:, :w]
+
+    if y + h > background_height:
+        h = background_height - y
+        overlay = overlay[:h]
+
+    if overlay.shape[2] < 4:
+        overlay = np.concatenate(
+            [
+                overlay,
+                np.ones((overlay.shape[0], overlay.shape[1], 1), dtype = overlay.dtype) * 255
+            ],
+            axis = 2,
+        )
+
+    overlay_image = overlay[..., :3]
+    mask = overlay[..., 3:] / 255.0
+
+    background[y:y+h, x:x+w] = (1.0 - mask) * background[y:y+h, x:x+w] + mask * overlay_image
+
+    return background
+
+def img_pipeline(original_image, debug):
+    debug_images = []
     img = undistort(original_image)
 
     try:
         img = edge_detection(img, filter_color=True)
+        debug_images.append(img)
+
         img = perspective_warp(img)
+        debug_images.append(img)
+
         out_img, curves, lanes, ploty = sliding_window(img)
+        debug_images.append(out_img)
+
     except:
         img = edge_detection(img, filter_color=False)
+        debug_images.append(img)
+
         img = perspective_warp(img)
+        debug_images.append(img)
+
         out_img, curves, lanes, ploty = sliding_window(img)
+        debug_images.append(out_img)
+
 
     curverad = get_curve(img, curves[0], curves[1])
     lane_curve = np.mean([curverad[0], curverad[1]])
     img = draw_lanes(img, curves[0], curves[1])
+    
+    if debug:
+        img = merge_image(img, debug_images[0], 1000, 0)
+        img = merge_image(img, debug_images[1], 1000, 300)
+        img = merge_image(img, debug_images[2], 700, 0)
+
     # img[0:60, -60:0] = cv.resize(debug_images[0], (60, 60))
     font = cv.FONT_HERSHEY_SIMPLEX
     fontColor = (0, 0, 0)
@@ -330,7 +384,7 @@ def img_pipeline(original_image):
 
 def vid_pipeline(input_file, output_file, debug):
     myclip = VideoFileClip(input_file)
-    clip = myclip.fl_image(img_pipeline)
+    clip = myclip.fl_image(lambda frame: img_pipeline(frame, int(debug)),)
     clip.write_videofile(output_file, audio=False)
 
 
