@@ -4,6 +4,7 @@ import cv2 as cv
 import pickle
 from moviepy.editor import VideoFileClip
 import glob
+import sys
 
 
 def undistort_img():
@@ -66,6 +67,20 @@ def undistort(img, cal_dir='camera_cal/cal_pickle.p'):
     return dst
 
 
+def color_filter(image):
+    #convert to HLS to mask based on HLS
+    hls = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+    lower = np.array([0,190,0])
+    upper = np.array([255,255,255])
+    yellower = np.array([10,0,90])
+    yelupper = np.array([50,255,255])
+    yellowmask = cv2.inRange(hls, yellower, yelupper)
+    whitemask = cv2.inRange(hls, lower, upper)
+    mask = cv2.bitwise_or(yellowmask, whitemask)
+    masked = cv2.bitwise_and(image, image, mask = mask)
+    return masked
+
+
 def get_curve(img, leftx, rightx):
     ploty = np.linspace(0, img.shape[0] - 1, img.shape[0])
     y_eval = np.max(ploty)
@@ -90,13 +105,14 @@ def get_curve(img, leftx, rightx):
     return left_curverad, right_curverad, center
 
 
-def edge_detection(img, s_thresh=(100, 255), sx_thresh=(15, 255)):
+def edge_detection(img, filter_color, s_thresh=(100, 255), sx_thresh=(15, 255)):
     img = np.copy(img)
     # Convert to HLS color space and separate the V channel
     # we use HLS color system to benifit us insted of rgb system as we geet in our testcases
     # some destortion in photos like sunlight and shadows ... and hls helps us to avoid these distortion
     # we will work on L_channel of the system
-
+    if filter_color:
+        img = color_filter(img)
     hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
     l_channel = hls[:, :, 1]
     s_channel = hls[:, :, 2]
@@ -288,15 +304,22 @@ def sliding_window(warped_img, nwindows=9):
     return out_img, (left_fitx, right_fitx), (left_fit_, right_fit_), ploty
 
 
-def img_pipeline(img):
-    img = undistort(img)
-    img_ = edge_detection(img)
-    img_ = perspective_warp(img_)
-    out_img, curves, lanes, ploty = sliding_window(img_)
+def img_pipeline(original_image):
+    img = undistort(original_image)
+
+    try:
+        img = edge_detection(img, filter_color=True)
+        img = perspective_warp(img)
+        out_img, curves, lanes, ploty = sliding_window(img)
+    except:
+        img = edge_detection(img, filter_color=False)
+        img = perspective_warp(img)
+        out_img, curves, lanes, ploty = sliding_window(img)
+
     curverad = get_curve(img, curves[0], curves[1])
     lane_curve = np.mean([curverad[0], curverad[1]])
     img = draw_lanes(img, curves[0], curves[1])
-
+    # img[0:60, -60:0] = cv.resize(debug_images[0], (60, 60))
     font = cv.FONT_HERSHEY_SIMPLEX
     fontColor = (0, 0, 0)
     fontSize = 0.5
@@ -305,11 +328,11 @@ def img_pipeline(img):
     return img
 
 
-def vid_pipeline(input_file, output_file):
+def vid_pipeline(input_file, output_file, debug):
     myclip = VideoFileClip(input_file)
     clip = myclip.fl_image(img_pipeline)
     clip.write_videofile(output_file, audio=False)
 
 
 if __name__ == "__main__":
-    vid_pipeline("project_video.mp4", "out.mp4")
+    vid_pipeline(*sys.argv[1:])
