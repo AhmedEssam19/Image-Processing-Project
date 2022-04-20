@@ -311,8 +311,11 @@ def merge_image(background, overlay, x, y):
     if x >= background_width or y >= background_height:
         return background
 
-    overlay = cv2.resize(overlay, (300, 300))
-    
+    overlay = cv2.resize(overlay, (200, 200))
+
+    if len(overlay.shape) < 3:
+        overlay = np.stack((overlay,)*3, axis=-1)*255
+
     h, w = overlay.shape[0], overlay.shape[1]
 
     if x + w > background_width:
@@ -340,40 +343,40 @@ def merge_image(background, overlay, x, y):
     return background
 
 def img_pipeline(original_image, debug):
-    debug_images = []
-    img = undistort(original_image)
+    original_image = undistort(original_image)
 
     try:
-        img = edge_detection(img, filter_color=True)
-        debug_images.append(img)
+        debug_images = []
+        img = edge_detection(original_image, filter_color=True)
+        temp = img
+        debug_images.append(img.copy())
 
         img = perspective_warp(img)
-        debug_images.append(img)
+        debug_images.append(img.copy())
 
         out_img, curves, lanes, ploty = sliding_window(img)
-        debug_images.append(out_img)
-
+        debug_images.append(out_img.copy())
     except:
-        img = edge_detection(img, filter_color=False)
-        debug_images.append(img)
+        debug_images = []
+        img = edge_detection(original_image, filter_color=False)
+        debug_images.append(img.copy())
 
         img = perspective_warp(img)
-        debug_images.append(img)
+        debug_images.append(img.copy())
 
         out_img, curves, lanes, ploty = sliding_window(img)
-        debug_images.append(out_img)
+        debug_images.append(out_img.copy())
 
-
-    curverad = get_curve(img, curves[0], curves[1])
+    curverad = get_curve(original_image, curves[0], curves[1])
     lane_curve = np.mean([curverad[0], curverad[1]])
-    img = draw_lanes(img, curves[0], curves[1])
-    
-    if debug:
-        img = merge_image(img, debug_images[0], 1000, 0)
-        img = merge_image(img, debug_images[1], 1000, 300)
-        img = merge_image(img, debug_images[2], 700, 0)
+    img = draw_lanes(original_image, curves[0], curves[1])
 
-    # img[0:60, -60:0] = cv.resize(debug_images[0], (60, 60))
+    if debug:
+        img = merge_image(img, temp, 1000, 0)
+        img = merge_image(img, debug_images[1], 1000, 200)
+        img = merge_image(img, debug_images[2], 800, 0)
+
+    
     font = cv.FONT_HERSHEY_SIMPLEX
     fontColor = (0, 0, 0)
     fontSize = 0.5
@@ -384,7 +387,7 @@ def img_pipeline(original_image, debug):
 
 def vid_pipeline(input_file, output_file, debug):
     myclip = VideoFileClip(input_file)
-    clip = myclip.fl_image(lambda frame: img_pipeline(frame, int(debug)),)
+    clip = myclip.fl_image(lambda frame: img_pipeline(frame, int(debug)))
     clip.write_videofile(output_file, audio=False)
 
 
