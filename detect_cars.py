@@ -2,7 +2,7 @@ import pickle
 import collections
 import sys
 from time import time
-
+import cv2 as cv
 import numpy as np
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
@@ -11,7 +11,6 @@ from moviepy.editor import VideoFileClip
 
 from draw_labeled_bboxes import add_heat, apply_threshold, draw_labeled_bboxes
 from find_car import find_car
-
 
 dist_pickle = pickle.load(open("classifier_info.p", "rb"))
 model = dist_pickle["svc"]
@@ -23,7 +22,7 @@ spatial_size_l = dist_pickle["spatial_size"]
 hist_bins_l = dist_pickle["hist_bins"]
 
 
-def img_pipeline(img):
+def img_pipeline_hog(img):
     heatmaps = collections.deque(maxlen=29)
 
     heat = np.zeros_like(img[:, :, 0]).astype(np.float)
@@ -55,9 +54,44 @@ def img_pipeline(img):
     return draw_img
 
 
+detector = cv.dnn.readNetFromDarknet(darknetModel="yolov3.weights", cfgFile="yolov3.cfg")
+
+
+def img_pipeline_yolo(image):
+    h, w = image.shape[:2]
+    layer_names = detector.getLayerNames()
+    out_layer_names = [layer_names[i - 1] for i in detector.getUnconnectedOutLayers()]
+
+    blob = cv.dnn.blobFromImage(image, 1 / 255.0, (416, 416), crop=False, swapRB=False)
+    detector.setInput(blob)
+
+    layers_output = detector.forward(out_layer_names)
+    boxes, confidences, classIDs = [], [], []
+    for output in layers_output:
+        for detection in output:
+            scores = detection[5:]
+            classID = np.argmax(scores)
+            confidence = scores[classID]
+
+            if confidence > 0.5 and classID == 2:
+                box = detection[:4] * np.array([w, h, w, h])
+                bx, by, bw, bh = box.astype(int)
+                x, y, = int(bx - bw / 2), int(by - bh / 2)
+                boxes.append([x, y, bw, bh])
+                confidences.append(confidence)
+                classIDs.append(classID)
+
+    indices = cv.dnn.NMSBoxes(boxes, confidences, 0.5, 0.5)
+    for idx in indices:
+        x, y, bw, bh = boxes[idx]
+        cv.rectangle(image, (x, y), (x + bw, y + bh), color=(0, 255, 255), thickness=2)
+
+    return image
+
+
 def vid_pipeline(input_file, output_file):
     myclip = VideoFileClip(input_file)
-    clip = myclip.fl_image(img_pipeline)
+    clip = myclip.fl_image(img_pipeline_yolo)
     clip.write_videofile(output_file, audio=False)
 
 
@@ -68,5 +102,4 @@ if __name__ == "__main__":
     # print("total", time()-t)
     # plt.imshow(img)
     # plt.show()
-
     vid_pipeline(*sys.argv[1:])
