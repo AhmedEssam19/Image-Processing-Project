@@ -91,6 +91,7 @@ def img_pipeline_yolo(image):
 
 def vid_pipeline(input_file, output_file):
     myclip = VideoFileClip(input_file)
+    myclip = myclip.set_fps(20)
     clip = myclip.fl_image(img_pipeline_yolo)
     clip.write_videofile(output_file, audio=False)
 
